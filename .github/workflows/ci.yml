@@ -6,10 +6,23 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   PYTHON_VERSION: "3.11"
   AIRFLOW_VERSION: "2.10.5"
+  DBT_VERSION: "1.9.1"
+  SQLFLUFF_VERSION: "3.2.5"
   AIRFLOW_HOME: ${{ github.workspace }}
+  AIRFLOW__CORE__DAGS_FOLDER: ${{ github.workspace }}/dags
+  AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+  AIRFLOW__CORE__UNIT_TEST_MODE: "True"
+  AIRFLOW_CONN_MY_BIGQUERY_CONNECTION: "google-cloud-platform://"
 
 jobs:
   lint:
@@ -21,10 +34,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
+          cache: "pip"
+          cache-dependency-path: |
+            pyproject.toml
+            requirements.txt
+            include/cloud_run/yellow_taxi_ingest/requirements.txt
 
       - name: Install ruff
-        run: pip install ruff==0.6.9
+        run: python -m pip install ruff==0.6.9
 
       - name: Ruff lint
         run: ruff check .
@@ -41,25 +58,30 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
+          cache: "pip"
+          cache-dependency-path: |
+            pyproject.toml
+            requirements.txt
+            dbt/yellow_taxi/packages.yml
 
-      - name: Install Airflow + project deps
+      - name: Install Airflow and project deps
         run: |
           set -euo pipefail
           CONSTRAINT="https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-${PYTHON_VERSION}.txt"
-          pip install --upgrade pip
+          python -m pip install --upgrade pip
           pip install "apache-airflow[google,http]==${AIRFLOW_VERSION}" --constraint "${CONSTRAINT}"
-          pip install -r requirements.txt --constraint "${CONSTRAINT}" || pip install -r requirements.txt
+          pip install -r requirements.txt --constraint "${CONSTRAINT}"
           pip install pandas pytest
 
-      - name: Install dbt in dbt_venv (Cosmos valida no DAG import)
+      - name: Install dbt in dbt_venv
         run: |
+          set -euo pipefail
           python -m venv "${GITHUB_WORKSPACE}/dbt_venv"
           "${GITHUB_WORKSPACE}/dbt_venv/bin/pip" install --upgrade pip
           "${GITHUB_WORKSPACE}/dbt_venv/bin/pip" install \
-            dbt-core==1.9.1 dbt-bigquery==1.9.1
+            "dbt-core==${DBT_VERSION}" "dbt-bigquery==${DBT_VERSION}"
 
-      - name: dbt deps (Cosmos roda dbt ls no DAG import)
+      - name: dbt deps
         working-directory: dbt/yellow_taxi
         env:
           DBT_PROFILES_DIR: ${{ github.workspace }}/dbt/yellow_taxi/ci
@@ -87,13 +109,18 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
+          cache: "pip"
+          cache-dependency-path: |
+            dbt/yellow_taxi/packages.yml
+            dbt/yellow_taxi/dbt_project.yml
+            .sqlfluff
 
-      - name: Install dbt + sqlfluff
+      - name: Install dbt and sqlfluff
         run: |
-          pip install --upgrade pip
-          pip install dbt-core==1.9.1 dbt-bigquery==1.9.1 \
-                      sqlfluff==3.2.5 sqlfluff-templater-dbt==3.2.5
+          python -m pip install --upgrade pip
+          pip install "dbt-core==${DBT_VERSION}" "dbt-bigquery==${DBT_VERSION}" \
+                      "sqlfluff==${SQLFLUFF_VERSION}" \
+                      "sqlfluff-templater-dbt==${SQLFLUFF_VERSION}"
 
       - name: dbt deps
         run: dbt deps
@@ -101,7 +128,7 @@ jobs:
       - name: dbt parse
         run: dbt parse --target ci
 
-      - name: SQLFluff lint (não bloqueante)
+      - name: SQLFluff lint (non-blocking)
         continue-on-error: true
         working-directory: ${{ github.workspace }}
         run: sqlfluff lint dbt/yellow_taxi/models

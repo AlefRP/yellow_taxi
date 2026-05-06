@@ -1,3 +1,2 @@
-# Padrões (regex por default) de arquivos/pastas que o Airflow deve
-# ignorar ao escanear DAGs neste diretório.
+# Regex patterns for files/folders Airflow should ignore in this DAG directory.
 _sandbox
