@@ -1,0 +1,33 @@
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = [
+    "dbt/**/target",
+    "dbt/**/dbt_packages",
+    "dags/_sandbox",
+    "logs",
+    ".astro",
+]
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "W",   # pycodestyle / pyflakes
+    "I",             # isort
+    "B",             # bugbear
+    "UP",            # pyupgrade
+    "SIM",           # simplify
+]
+ignore = [
+    "E501",  # line-length é checada por outra regra
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra -q"
+filterwarnings = [
+    "ignore::DeprecationWarning:airflow.*",
+    "ignore::PendingDeprecationWarning",
+]

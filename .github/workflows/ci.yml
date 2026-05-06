@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  PYTHON_VERSION: "3.11"
+  AIRFLOW_VERSION: "2.10.5"
+  AIRFLOW_HOME: ${{ github.workspace }}
+
+jobs:
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install ruff
+        run: pip install ruff==0.6.9
+
+      - name: Ruff lint
+        run: ruff check .
+
+      - name: Ruff format check
+        run: ruff format --check .
+
+  test:
+    name: Pytest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install Airflow + project deps
+        run: |
+          set -euo pipefail
+          CONSTRAINT="https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-${PYTHON_VERSION}.txt"
+          pip install --upgrade pip
+          pip install "apache-airflow[google,http]==${AIRFLOW_VERSION}" --constraint "${CONSTRAINT}"
+          pip install -r requirements.txt --constraint "${CONSTRAINT}" || pip install -r requirements.txt
+          pip install pandas pytest
+
+      - name: Initialize Airflow DB
+        run: airflow db migrate
+
+      - name: Run pytest
+        run: pytest -ra
+
+  dbt:
+    name: dbt deps + parse + sqlfluff
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dbt/yellow_taxi
+    env:
+      DBT_PROFILES_DIR: ${{ github.workspace }}/dbt/yellow_taxi/ci
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dbt + sqlfluff
+        run: |
+          pip install --upgrade pip
+          pip install dbt-core==1.9.1 dbt-bigquery==1.9.1 \
+                      sqlfluff==3.2.5 sqlfluff-templater-dbt==3.2.5
+
+      - name: dbt deps
+        run: dbt deps
+
+      - name: dbt parse
+        run: dbt parse --target ci
+
+      - name: SQLFluff lint (não bloqueante)
+        continue-on-error: true
+        working-directory: ${{ github.workspace }}
+        run: sqlfluff lint dbt/yellow_taxi/models

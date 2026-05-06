@@ -1,0 +1,33 @@
+version: 2
+
+models:
+  - name: stg_yellow_taxi
+    description: "Viagens de táxi amarelo após renomeação e geração de chave."
+    columns:
+      - name: id
+        description: "Chave substituta gerada por hash de (vendor_id, pickup_datetime)."
+        tests:
+          - not_null
+          - unique
+      - name: vendor_id
+        description: "ID do fornecedor que registrou a corrida."
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 1
+              max_value: 7
+      - name: pickup_datetime
+        description: "Timestamp de início da corrida."
+        tests:
+          - not_null
+      - name: pickup_date
+        description: "Data de início (chave de particionamento)."
+        tests:
+          - not_null
+      - name: store_and_fwd_flag
+        description: "Y = armazenado e encaminhado; N = transmitido em tempo real."
+        tests:
+          - accepted_values:
+              values: ['N', 'Y']
+              config:
+                where: "store_and_fwd_flag is not null"

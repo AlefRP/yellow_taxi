@@ -1,0 +1,21 @@
+version: 2
+
+models:
+  - name: fct_passengers_by_vendor
+    description: "Total de passageiros e corridas por fornecedor."
+    columns:
+      - name: vendor_id
+        description: "ID do fornecedor."
+        tests:
+          - not_null
+          - unique
+      - name: total_passengers
+        description: "Soma de passageiros transportados pelo fornecedor."
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "> 0"
+      - name: total_trips
+        description: "Quantidade de corridas registradas."
+        tests:
+          - not_null

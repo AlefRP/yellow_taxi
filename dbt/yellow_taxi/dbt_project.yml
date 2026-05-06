@@ -1,0 +1,25 @@
+name: 'yellow_taxi_dbt'
+version: '1.0.0'
+profile: 'yellow_taxi_dbt'
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+# A camada bronze (Iceberg) é construída fora do dbt, em GCS pela Cloud Run.
+# Aqui o dbt começa pelos modelos `src` que leem a tabela externa Iceberg do BQ.
+models:
+  yellow_taxi_dbt:
+    src:
+      +materialized: ephemeral
+    staging:
+      +materialized: view
+    marts:
+      +materialized: table

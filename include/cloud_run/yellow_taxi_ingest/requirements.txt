@@ -1,0 +1,6 @@
+google-cloud-storage>=2.16,<3
+kagglehub[pandas-datasets]>=0.3
+pandas>=2.2
+pyarrow>=15
+pyiceberg[sql-sqlite,pyarrow,gcsfs]>=0.7,<0.9
+gcsfs>=2024.3
