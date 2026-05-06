@@ -28,7 +28,6 @@ def test_load_gcp_config_uses_env(monkeypatch, reload_config):
     monkeypatch.setenv("GCS_BUCKET", "my-bucket")
     monkeypatch.setenv("GCS_RAW_PREFIX", "my/prefix")
     monkeypatch.setenv("GCS_BRONZE_PREFIX", "br/yellow_taxi")
-    monkeypatch.setenv("BIGLAKE_CONNECTION", "p.eu.conn")
 
     cfg = reload_config().load_gcp_config()
 
@@ -40,7 +39,6 @@ def test_load_gcp_config_uses_env(monkeypatch, reload_config):
     assert cfg.gcs_bucket == "my-bucket"
     assert cfg.gcs_raw_prefix == "my/prefix"
     assert cfg.gcs_bronze_prefix == "br/yellow_taxi"
-    assert cfg.biglake_connection == "p.eu.conn"
 
 
 def test_load_cloud_run_config_uses_env(monkeypatch, reload_config):

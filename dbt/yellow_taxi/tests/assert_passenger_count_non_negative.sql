@@ -1,4 +1,4 @@
--- Falha se houver linhas com passenger_count negativo na bronze.
+-- Falha se houver linhas com passenger_count negativo no source.
 SELECT *
-FROM {{ source('bronze', 'bronze_yellow_taxi') }}
+FROM {{ ref('src_yellow_taxi') }}
 WHERE passenger_count < 0

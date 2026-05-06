@@ -1,56 +1,48 @@
-# Yellow Taxi — Pipeline Medallion (Cloud Run + Iceberg + BigQuery + dbt)
+# Yellow Taxi — Pipeline (Cloud Run + GCS + BigQuery + dbt)
 
 Pipeline de engenharia de dados para as viagens de táxi amarelo de NYC.
-Ingestão via **Cloud Run Job** (Kaggle → GCS), camada **bronze em Iceberg**
-exposta ao BigQuery por **BigLake external table**, e modelagem com **dbt**
-orquestrada pelo **Apache Airflow** (Astronomer Runtime, via Astronomer Cosmos).
+Ingestão via **Cloud Run Job** (Kaggle → GCS), carga em **BigQuery** a partir
+do parquet raw, e modelagem com **dbt** orquestrada pelo **Apache Airflow**
+(Astronomer Runtime, via Astronomer Cosmos).
+
+A camada **bronze em Iceberg** é gravada em GCS pela Cloud Run para consumo
+por outros mecanismos (Spark/Trino) — o BigQuery deste pipeline lê apenas a
+camada raw via `LOAD` job.
 
 ## Arquitetura
 
 ```text
-            ┌──────────────────────── Airflow ────────────────────────┐
-            │                                                         │
-   Kaggle   │   gcs_to_bigquery (mensal):                             │
-     │      │     1. CloudRunExecuteJobOperator                       │
-     ▼      │     2. discover_latest_metadata (lista GCS)             │
-  ┌─────────┼─────────────────────────────────────────────────────┐   │
-  │ Cloud   │     3. CREATE OR REPLACE EXTERNAL TABLE (BigLake)   │   │
-  │ Run Job │                                                     │   │
-  └────┬────┴─────────────────────────────────────────────────────┘   │
-       │                                                              │
-       │ raw (parquet)              bronze (Iceberg)                  │
-       ▼                                                              │
-  ┌─────────────────────────────────────────────────────────────┐     │
-  │                          GCS                                │     │
-  │   raw/yellow_tripdata/yellow_tripdata_YYYY-MM.parquet       │     │
-  │   bronze/yellow_taxi/yellow_taxi.db/bronze/{data,metadata}/ │     │
-  └─────────────────────────────────────────────────────────────┘     │
-                              │                                       │
-                              ▼                                       │
-                ┌──────────────────────────────┐                      │
-                │        BigQuery              │                      │
-                │  bronze_yellow_taxi          │  ← external Iceberg  │
-                │      (BigLake)               │                      │
-                └──────────────┬───────────────┘                      │
-                               │                                      │
-                               │  yellow_taxi (diário, Cosmos)        │
-                               ▼                                      │
-                  ┌─────────────────────────┐                         │
-                  │  dbt: src → staging →   │                         │
-                  │  marts (BQ tables)      │                         │
-                  └─────────────────────────┘                         │
-                                                                      │
-            └─────────────────────────────────────────────────────────┘
+   Kaggle
+     │
+     ▼
+  ┌─────────────────────────┐
+  │  Cloud Run Job          │  (disparado pelo Airflow,
+  │  yellow-taxi-ingest     │   CloudRunExecuteJobOperator)
+  └────────────┬────────────┘
+               │
+               │ escreve em GCS
+               ▼
+  ┌─────────────────────────────────────────────────────────────┐
+  │                          GCS                                │
+  │   raw/yellow_tripdata/yellow_tripdata_YYYY-MM.parquet       │
+  │   bronze/yellow_taxi/yellow_taxi.db/bronze/{data,metadata}/ │
+  └────────────┬────────────────────────────────────────────────┘
+               │ (somente raw)
+               ▼
+   ┌──────────────────────┐    yellow_taxi (diário, Cosmos)
+   │   BQ raw_yellow_taxi │ ─────────────────────────────────▶  dbt
+   │   (LOAD parquet)     │                                     src → staging → marts
+   └──────────────────────┘
 ```
 
 ### Camadas
 
-| Camada | Local | Formato | Produzido por |
-| --- | --- | --- | --- |
-| **raw** | `gs://{bucket}/raw/yellow_tripdata/` | Parquet (1 arquivo/mês) | Cloud Run Job |
-| **bronze** | `gs://{bucket}/bronze/yellow_taxi/` | Iceberg (catálogo SQLite no próprio bucket) | Cloud Run Job (pyiceberg) |
-| **bronze (BQ)** | `{dataset}.bronze_yellow_taxi` | External Table BigLake | Airflow (DDL) |
-| **staging/marts** | `{dataset}.stg_*`, `{dataset}.fct_*` | BQ tables | dbt |
+| Camada | Local | Formato | Produzido por | Consumido por |
+| --- | --- | --- | --- | --- |
+| **raw** | `gs://{bucket}/raw/yellow_tripdata/` | Parquet (1 arquivo/mês) | Cloud Run Job | BigQuery LOAD job |
+| **bronze** | `gs://{bucket}/bronze/yellow_taxi/` | Iceberg | Cloud Run Job (pyiceberg) | Outros engines (Spark/Trino) |
+| **raw (BQ)** | `{dataset}.{raw_table}` | BQ table | Airflow (LOAD) | dbt |
+| **staging/marts** | `{dataset}.stg_*`, `{dataset}.fct_*` | BQ tables | dbt | Consumo analítico |
 
 ## Estrutura
 
@@ -67,7 +59,7 @@ orquestrada pelo **Apache Airflow** (Astronomer Runtime, via Astronomer Cosmos).
 │   ├── config.py                      # Config centralizada (Variable→env→default)
 │   ├── default_args.py                # Default args padrão dos DAGs
 │   ├── callbacks.py                   # on_failure
-│   ├── bq_iceberg.py                  # DDL builder + descoberta de metadata.json
+│   ├── bq_loader.py                   # Builder do load job (parquet → BQ)
 │   ├── profiles.py                    # ProfileConfig do Cosmos
 │   └── constants.py
 ├── tests/                             # pytest
@@ -78,16 +70,15 @@ orquestrada pelo **Apache Airflow** (Astronomer Runtime, via Astronomer Cosmos).
 
 - [Astro CLI](https://www.astronomer.io/docs/astro/cli/install-cli) ≥ 1.28
 - Docker Desktop
-- Projeto GCP com **BigQuery**, **GCS**, **Cloud Run**, **BigLake API** habilitados
-- **BigLake connection** criada (`bq mk --connection --connection_type=CLOUD_RESOURCE …`),
-  com a service account dela tendo `roles/storage.objectViewer` no bucket
+- Projeto GCP com **BigQuery**, **GCS** e **Cloud Run** habilitados
 - Service account do Airflow com:
   - `roles/run.invoker`, `roles/run.developer` (Cloud Run)
   - `roles/bigquery.dataEditor`, `roles/bigquery.jobUser`
   - `roles/storage.objectViewer`
 - Service account do Cloud Run Job com:
-  - `roles/storage.objectAdmin` no bucket (precisa escrever em raw/ e bronze/)
-- Credenciais Kaggle salvas no Secret Manager (`kaggle-username`, `kaggle-key`)
+  - `roles/storage.objectAdmin` no bucket (escrever raw/ e bronze/)
+- Credenciais Kaggle (`KAGGLE_USERNAME`, `KAGGLE_KEY`) — locais em `.env`,
+  passadas ao Cloud Run Job via `--set-env-vars` no deploy
 
 ## Setup local
 
@@ -138,7 +129,7 @@ Cobertura:
 - `tests/test_config.py` — precedência env/default; `GcpConfig` e `CloudRunConfig`
 - `tests/test_default_args.py` — `build_default_args` correto
 - `tests/test_callbacks.py` — `on_failure` não levanta
-- `tests/test_bq_iceberg.py` — DDL Iceberg + parser de metadata.json + listagem GCS
+- `tests/test_bq_loader.py` — URI/destino/options do load BigQuery
 
 ## CI
 

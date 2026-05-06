@@ -1,18 +1,14 @@
 version: 2
 
 sources:
-  - name: bronze
-    description: |
-      Camada bronze: tabelas externas BigLake apontando para arquivos Iceberg
-      em GCS. As tabelas são criadas/atualizadas pelo DAG `gcs_to_bigquery`.
+  - name: dbtbigq
+    description: "Tabela raw carregada pelo DAG gcs_to_bigquery a partir do parquet em GCS."
     schema: "{{ env_var('BQ_DATASET', 'taxis_ny') }}"
     tables:
-      - name: bronze_yellow_taxi
-        description: "Viagens de yellow taxi conformadas em formato Iceberg."
-        columns:
-          - name: vendor_id
-          - name: pickup_datetime
-          - name: dropoff_datetime
-          - name: pickup_date
-          - name: passenger_count
-          - name: store_and_fwd_flag
+      - name: raw_yellow_taxi
+        identifier: "{{ env_var('BQ_RAW_TABLE', 'yellow_taxi') }}"
+        description: "Viagens de yellow taxi de NYC, ingeridas mensalmente do Kaggle."
+        loaded_at_field: tpep_pickup_datetime
+        freshness:
+          warn_after: {count: 36, period: hour}
+          error_after: {count: 72, period: hour}
