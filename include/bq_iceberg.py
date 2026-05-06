@@ -17,8 +17,9 @@ from include.config import GcpConfig
 _METADATA_RE = re.compile(r"(?P<seq>\d+)-[0-9a-f-]+\.metadata\.json$")
 
 
-def latest_metadata_uri(cfg: GcpConfig, *, namespace: str = "yellow_taxi",
-                        table: str = "bronze") -> str:
+def latest_metadata_uri(
+    cfg: GcpConfig, *, namespace: str = "yellow_taxi", table: str = "bronze"
+) -> str:
     """Encontra o `vN.metadata.json` mais recente da tabela bronze em GCS.
 
     Conforme o pyiceberg, os arquivos vivem em
@@ -29,9 +30,7 @@ def latest_metadata_uri(cfg: GcpConfig, *, namespace: str = "yellow_taxi",
     client = storage.Client()
     blobs = client.list_blobs(cfg.gcs_bucket, prefix=prefix)
     candidates = [
-        (int(m.group("seq")), b.name)
-        for b in blobs
-        if (m := _METADATA_RE.search(b.name))
+        (int(m.group("seq")), b.name) for b in blobs if (m := _METADATA_RE.search(b.name))
     ]
     if not candidates:
         raise FileNotFoundError(

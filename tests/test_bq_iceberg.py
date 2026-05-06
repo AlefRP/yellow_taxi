@@ -33,6 +33,7 @@ def cfg() -> GcpConfig:
 # build_external_iceberg_ddl
 # --------------------------------------------------------------------------
 
+
 def test_ddl_uses_project_dataset_table(cfg):
     ddl = build_external_iceberg_ddl(cfg, "gs://x/m.json")
     assert "`proj.ds.bronze_yellow_taxi`" in ddl
@@ -54,6 +55,7 @@ def test_ddl_table_name_override(cfg):
 # Regex de metadata
 # --------------------------------------------------------------------------
 
+
 @pytest.mark.parametrize(
     "name,expected_seq",
     [
@@ -73,8 +75,8 @@ def test_metadata_regex_matches_pyiceberg_filenames(name, expected_seq):
     [
         "snap-1234.avro",
         "version-hint.text",
-        "0000.metadata.json",          # sem hífen+uuid
-        "00000-.metadata.json",        # uuid vazio
+        "0000.metadata.json",  # sem hífen+uuid
+        "00000-.metadata.json",  # uuid vazio
     ],
 )
 def test_metadata_regex_rejects_others(name):
@@ -84,6 +86,7 @@ def test_metadata_regex_rejects_others(name):
 # --------------------------------------------------------------------------
 # latest_metadata_uri
 # --------------------------------------------------------------------------
+
 
 def _make_blob(name: str):
     b = MagicMock()

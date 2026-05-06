@@ -1,2 +1,0 @@
-# Pastas/arquivos que o Airflow deve ignorar ao escanear DAGs
-_sandbox/

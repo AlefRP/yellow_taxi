@@ -60,9 +60,7 @@ def load_gcp_config() -> GcpConfig:
         bq_location=_get("bq_location", "BQ_LOCATION", "US"),
         gcs_bucket=_get("gcs_bucket", "GCS_BUCKET", "dbt_teste"),
         gcs_raw_prefix=_get("gcs_raw_prefix", "GCS_RAW_PREFIX", "raw/yellow_tripdata"),
-        gcs_bronze_prefix=_get(
-            "gcs_bronze_prefix", "GCS_BRONZE_PREFIX", "bronze/yellow_taxi"
-        ),
+        gcs_bronze_prefix=_get("gcs_bronze_prefix", "GCS_BRONZE_PREFIX", "bronze/yellow_taxi"),
         biglake_connection=_get(
             "biglake_connection",
             "BIGLAKE_CONNECTION",

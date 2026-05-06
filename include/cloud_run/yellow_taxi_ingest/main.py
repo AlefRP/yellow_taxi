@@ -55,6 +55,7 @@ CATALOG_BLOB = "_catalog/catalog.db"
 # Helpers
 # --------------------------------------------------------------------------
 
+
 def _required_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
@@ -99,15 +100,14 @@ def to_bronze(df: pd.DataFrame) -> pa.Table:
     df["dropoff_datetime"] = pd.to_datetime(df["dropoff_datetime"], errors="coerce")
     df["pickup_date"] = df["pickup_datetime"].dt.date
     df["vendor_id"] = pd.to_numeric(df["vendor_id"], errors="coerce").astype("Int64")
-    df["passenger_count"] = pd.to_numeric(
-        df["passenger_count"], errors="coerce"
-    ).astype("Int64")
+    df["passenger_count"] = pd.to_numeric(df["passenger_count"], errors="coerce").astype("Int64")
     return pa.Table.from_pandas(df[BRONZE_COLUMNS], preserve_index=False)
 
 
 # --------------------------------------------------------------------------
 # GCS I/O
 # --------------------------------------------------------------------------
+
 
 def upload_parquet(df: pd.DataFrame, bucket: str, blob_name: str) -> str:
     buffer = io.BytesIO()
@@ -144,9 +144,8 @@ def upload_catalog_db(bucket: str, blob_name: str, src: Path) -> None:
 # Iceberg
 # --------------------------------------------------------------------------
 
-def append_to_bronze(
-    arrow_table: pa.Table, bucket: str, bronze_prefix: str
-) -> str:
+
+def append_to_bronze(arrow_table: pa.Table, bucket: str, bronze_prefix: str) -> str:
     """Append na tabela Iceberg bronze. Retorna o caminho do metadata.json novo."""
     with tempfile.TemporaryDirectory() as tmp:
         local_db = Path(tmp) / "catalog.db"
@@ -185,6 +184,7 @@ def append_to_bronze(
 # --------------------------------------------------------------------------
 # Entry point
 # --------------------------------------------------------------------------
+
 
 def main() -> int:
     year = _required_int_env("YEAR")
