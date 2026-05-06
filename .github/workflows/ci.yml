@@ -85,7 +85,8 @@ jobs:
         working-directory: dbt/yellow_taxi
         env:
           DBT_PROFILES_DIR: ${{ github.workspace }}/dbt/yellow_taxi/ci
-        run: "${GITHUB_WORKSPACE}/dbt_venv/bin/dbt" deps
+        run: |
+          "${GITHUB_WORKSPACE}/dbt_venv/bin/dbt" deps
 
       - name: Initialize Airflow DB
         run: airflow db migrate
